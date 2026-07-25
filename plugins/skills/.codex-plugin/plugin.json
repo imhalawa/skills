@@ -1,0 +1,25 @@
+{
+  "name": "skills",
+  "version": "0.1.0",
+  "description": "Personal skill collection, starting with decide: logic-first decision resolution backed by research and a persistent profile.",
+  "author": {
+    "name": "imhalawa",
+    "url": "https://github.com/imhalawa"
+  },
+  "homepage": "https://github.com/imhalawa/skills",
+  "repository": "https://github.com/imhalawa/skills",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Skills",
+    "shortDescription": "Personal skill collection.",
+    "longDescription": "Personal skills built to the open Agent Skills standard. Currently includes decide, a logic-first decision-resolution skill that interviews you, researches the options, and scores a recommendation against your own profile instead of gut feel.",
+    "developerName": "imhalawa",
+    "category": "Productivity",
+    "capabilities": ["Write"],
+    "websiteURL": "https://github.com/imhalawa/skills",
+    "defaultPrompt": [
+      "Help me decide between two options.",
+      "Revisit my last decision."
+    ]
+  }
+}

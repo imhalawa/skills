@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "skills",
+  "description": "Personal skills, starting with decide: logic-first decision resolution backed by research and a persistent profile.",
+  "owner": {
+    "name": "imhalawa",
+    "url": "https://github.com/imhalawa"
+  },
+  "plugins": [
+    {
+      "name": "skills",
+      "description": "Personal skill collection. Currently includes decide, a logic-first decision-resolution skill.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}
