@@ -12,9 +12,9 @@ Skill bodies must stay harness-agnostic in wording (e.g. "invoke the `X` skill",
 
 ### As individual skills
 
-- **Claude Code** — installs under `~/.agents/skills` (symlinked into `~/.claude/skills`):
+- **Claude Code** — installs under `~/.agents/skills` (symlinked into `~/.claude/skills`). Use `-g` for a global (user-level) install — without it, `npx skills add` installs project-locally if run inside a git repo, which is usually not what you want for a personal skill:
   ```
-  npx skills add imhalawa/skills
+  npx skills add imhalawa/skills -g
   ```
 - **Codex CLI** — installs under `$CODEX_HOME/skills` (default `~/.codex/skills`) via the bundled `skill-installer` skill:
   ```
