@@ -21,6 +21,8 @@ This skill depends on `grilling` and `research`, and must work the same under Cl
 
 Do not proceed past this check silently — either both dependencies are confirmed present, or the user has explicitly approved installing them.
 
+**First run.** If `life-decisions/profile.md` doesn't exist (repo missing entirely, or present but empty of real content): this is a new machine or a fresh setup. Before touching the user's actual decision, say so, then run a dedicated onboarding interview via the `grilling` skill — not about the decision at hand, but about the user themselves: values, risk tolerance, hard constraints (financial, family, health, time), and how they tend to decide (impulsive/deliberate, what derails them). Write the answers into a freshly created `profile.md` (mirror the structure — Decision-making style / Values / Constraints — each entry dated). Only then proceed to the pipeline below for their actual decision. Skip this step entirely once a populated profile already exists — it's onboarding, not a recurring ritual.
+
 Pipeline, in order:
 
 1. **Load profile.** Read `life-decisions/profile.md`. Also capture any new values/constraints/decision-style facts the user reveals in this session and append them to it.
