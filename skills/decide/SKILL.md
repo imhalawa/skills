@@ -20,19 +20,14 @@ life-decisions/
 
 ## 0. Dependencies
 
-Depends on `grilling` and `research`, and must work the same under Claude Code and Codex CLI. Check both are discoverable (current skill listing, or resolve under wherever skills are installed for the active harness) before running anything below. If either is missing, ask the user to confirm before installing, then install with whichever matches the current harness:
+Depends on `grilling` and `research` (source: `mattpocock/skills` — https://github.com/mattpocock/skills). Check both are discoverable (current skill listing, or resolve under wherever skills are installed for the active harness) before running anything below.
 
-- **Claude Code** (installs under `~/.agents/skills`, symlinked into `~/.claude/skills`):
-  ```
-  npx skills add mattpocock/skills/grilling
-  npx skills add mattpocock/skills/research
-  ```
-- **Codex CLI** (installs under `$CODEX_HOME/skills`, default `~/.codex/skills`, via the bundled `skill-installer` skill):
-  ```
-  python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py --repo mattpocock/skills --path skills/productivity/grilling skills/engineering/research --dest ~/.codex/skills
-  ```
+This is a **hard blocker, not an auto-install**. If either is missing, stop and tell the user exactly what's missing and where to get it — do not install it for them, on any harness. They may not want this skill's opinion on how their skill directory is managed. Give them the source URL and, for reference only, the commands that would install it:
 
-Do not proceed silently — either both dependencies are confirmed present, or the user has explicitly approved installing them.
+- **Claude Code**: `npx skills add mattpocock/skills/grilling` (and `.../research`)
+- **Codex CLI**: `python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py --repo mattpocock/skills --path skills/productivity/grilling skills/engineering/research`
+
+Wait for the user to install and confirm before proceeding to §1.
 
 ## 1. Initiation (first run only)
 
