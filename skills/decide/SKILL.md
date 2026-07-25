@@ -5,18 +5,21 @@ description: Logic-first decision and life-choice resolution, backed by research
 
 Act as the user's purely logical second voice — a deliberate counterweight to emotion-driven, impulsive decision-making. Never make the final call for them; make the logic behind a good call impossible to ignore.
 
-The profile and decision log live in a separate repo: `life-decisions` (find it next to this repo, e.g. `/mnt/r/life-decisions`; if not found there, ask where it lives once, then remember). Layout:
+The profile and decision log live in a separate repo: `life-decisions` — known location: `/mnt/r/life-decisions` (may relocate; if not there, ask where it lives once, then remember). Layout:
 
 ```
 life-decisions/
   profile.md              # accumulated values / constraints / decision-style
   templates/
-    decision.md            # template for each entry.md — keep this in sync if the structure evolves
+    decision.md            # seeded copy — canonical source is this skill's own templates/decision.md
+    profile.md              # seeded copy — canonical source is this skill's own templates/profile.md
   decisions/
     <slug>/
       entry.md              # structured output, copied from templates/decision.md
       transcript.md          # raw grilling Q&A for this decision, verbatim
 ```
+
+This skill's own repo carries the canonical templates (`templates/decision.md`, `templates/profile.md`, next to this file) — `life-decisions` gets a seeded copy on first run. If the templates evolve here, re-sync the copies in `life-decisions` too.
 
 ## 0. Dependencies
 
@@ -31,7 +34,13 @@ Wait for the user to install and confirm before proceeding to §1.
 
 ## 1. Initiation (first run only)
 
-If `life-decisions/profile.md` doesn't exist, or exists but is empty of real content: this is a new machine or fresh setup. Say so, then run a dedicated onboarding interview via `grilling` — not about any specific decision, but about the user themselves: values, risk tolerance, hard constraints (financial, family, health, time), and how they tend to decide (impulsive/deliberate, what derails them). Write the answers into `profile.md` under the Decision-making style / Values / Constraints headings, each entry dated. Create `templates/decision.md` and `decisions/` if they don't exist yet (copy the template from this skill's own repo if `life-decisions` has none). Skip this whole step once a populated profile already exists — it's onboarding, not a recurring ritual.
+If `life-decisions/profile.md` doesn't exist, or exists but is empty of real content: this is a new machine or fresh setup.
+
+1. Scaffold `life-decisions` if missing: copy this skill's `templates/profile.md` to `life-decisions/profile.md`, copy `templates/decision.md` to `life-decisions/templates/decision.md` (and `templates/profile.md` there too, for reference), create `decisions/`.
+2. Say what's happening, then run a dedicated onboarding interview via `grilling` — not about any specific decision, but about the user themselves: values, risk tolerance, hard constraints (financial, family, health, time), and how they tend to decide (impulsive/deliberate, what derails them).
+3. Write the answers into `profile.md` under the Decision-making style / Values / Constraints headings, each entry dated.
+
+Skip this whole step once a populated profile already exists — it's onboarding, not a recurring ritual.
 
 ## 2. Ongoing capture
 
@@ -54,4 +63,4 @@ If the user wants to revisit an existing decision (explicit ask, or a new decisi
 
 ## Templates
 
-`templates/decision.md` is the source of truth for `entry.md` structure. If a decision's needs outgrow it (a recurring section that isn't in the template), update the template too, so future entries stay consistent — don't let entries drift from each other.
+This skill's `templates/decision.md` and `templates/profile.md` (next to this file) are the source of truth — `life-decisions`' copies are seeded from them, not the other way around. If a decision's needs outgrow the template (a recurring section that isn't there yet), update the template here first, then re-sync `life-decisions/templates/`, so future entries stay consistent instead of drifting.
