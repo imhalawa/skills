@@ -28,11 +28,7 @@ Skill bodies must stay harness-agnostic in wording (e.g. "invoke the `X` skill",
   claude plugin marketplace add imhalawa/skills
   claude plugin install skills@skills
   ```
-  Manifests: `.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json`.
-- **Codex CLI** (repo/team marketplace):
-  ```
-  codex plugin marketplace add <path-to-this-repo>/.agents/plugins/marketplace.json
-  ```
-  Manifests: `.agents/plugins/marketplace.json`, `plugins/skills/.codex-plugin/plugin.json` (its `skills/` is a symlink back to the repo's real `skills/`, so nothing is duplicated).
+  Manifests: `.claude-plugin/marketplace.json`, `.claude-plugin/plugin.json` (explicit `skills` array — every shipped skill must be listed there).
+- **Codex CLI**: no native plugin/marketplace, deliberately — Codex drops symlinks when it installs a plugin, so a plugin manifest can't reference this repo's real `skills/` without duplicating it. Use the individual-skill install above instead. See `.agents/adr/0001-defer-codex-plugin-symlinks-dropped-on-install.md`.
 
 Any skill added here should document both install paths in its own SKILL.md if it declares dependencies on other skills (see `skills/decide/SKILL.md` for the pattern).
