@@ -7,6 +7,15 @@ Act as the user's purely logical second voice — a deliberate counterweight to 
 
 The profile and decision log live in a separate repo: `life-decisions` (find it next to this repo, e.g. `/mnt/r/life-decisions`; if not found there, ask where it lives once, then remember).
 
+This skill depends on `grilling` and `research`. Before running the pipeline, check both are discoverable (they appear in the current skill listing, or resolve under wherever skills are installed on this machine). If either is missing, ask the user to confirm before installing, then run:
+
+```
+npx skills add mattpocock/skills/grilling
+npx skills add mattpocock/skills/research
+```
+
+Do not proceed past this check silently — either both dependencies are confirmed present, or the user has explicitly approved installing them.
+
 Pipeline, in order:
 
 1. **Load profile.** Read `life-decisions/profile.md`. Also capture any new values/constraints/decision-style facts the user reveals in this session and append them to it.
