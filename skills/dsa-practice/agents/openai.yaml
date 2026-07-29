@@ -1,0 +1,4 @@
+interface:
+  display_name: "DSA Practice"
+  short_description: "Run a minimal DSA practice system"
+  default_prompt: "Use $dsa-practice to add my next DSA problem without hints."

@@ -1,7 +1,7 @@
 {
   "name": "skills",
   "version": "0.1.0",
-  "description": "Personal skill collection. Currently includes decide, a logic-first decision-resolution skill that interviews you, researches the options, and scores a recommendation against your own profile instead of gut feel.",
+  "description": "Personal skill collection for decision-making and structured DSA practice.",
   "author": {
     "name": "imhalawa",
     "url": "https://github.com/imhalawa"
@@ -9,6 +9,7 @@
   "repository": "https://github.com/imhalawa/skills",
   "license": "MIT",
   "skills": [
-    "./skills/decide"
+    "./skills/decide",
+    "./skills/dsa-practice"
   ]
 }
