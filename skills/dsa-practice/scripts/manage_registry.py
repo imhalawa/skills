@@ -1,188 +1,412 @@
 #!/usr/bin/env python3
-"""Maintain the dsa-practice CSV registry and its Excel view."""
+"""Maintain a minimal, append-only DSA practice registry."""
 
 import argparse
 import csv
+import json
 import re
-from collections import Counter
+import shutil
+import sys
+import tempfile
 from datetime import date, timedelta
 from pathlib import Path
-from xml.sax.saxutils import escape
-from zipfile import ZIP_DEFLATED, ZipFile
 
 
-FIELDS = [
-    "source", "id", "slug", "title", "url", "topics", "patterns", "difficulty",
-    "language", "status", "outcome", "attempts", "total_minutes", "confidence",
-    "last_attempted", "next_review", "review_stage", "debrief",
+PROBLEM_FIELDS = [
+    "source", "id", "slug", "title", "url", "topics", "difficulty", "language",
 ]
-EXTENSIONS = {"java": "java", "python": "py", "javascript": "js", "typescript": "ts", "go": "go", "rust": "rs", "c++": "cpp", "c": "c"}
+ATTEMPT_FIELDS = [
+    "source", "id", "attempted_at", "result", "assistance", "minutes",
+    "confidence", "debrief",
+]
+LEGACY_PROBLEM_FIELDS = [
+    "source", "id", "slug", "title", "url", "topics", "patterns",
+    "difficulty", "language", "status", "outcome", "attempts",
+    "total_minutes", "confidence", "last_attempted", "next_review",
+    "review_stage", "debrief",
+]
+RESULTS = {"correct", "incorrect"}
+ASSISTANCE_LEVELS = {"none", "hint", "solution"}
+DIFFICULTIES = {"", "easy", "medium", "hard"}
+EXTENSIONS = {
+    "c": "c",
+    "c++": "cpp",
+    "go": "go",
+    "java": "java",
+    "javascript": "js",
+    "python": "py",
+    "rust": "rs",
+    "typescript": "ts",
+}
+SAFE_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
-def registry_path(root):
-    return root / "registry" / "problems.csv"
+class RegistryError(Exception):
+    """A user-correctable registry error."""
 
 
-def read_rows(root):
-    path = registry_path(root)
-    if not path.exists():
-        raise SystemExit(f"Registry not found: {path}. Run init first.")
-    with path.open(newline="", encoding="utf-8") as file:
-        return list(csv.DictReader(file))
+def table_path(root, name):
+    return root / "registry" / name
 
 
-def write_rows(root, rows):
-    path = registry_path(root)
+def write_table(path, fields, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=FIELDS)
-        writer.writeheader()
-        writer.writerows(rows)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            newline="",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as file:
+            temporary_path = Path(file.name)
+            writer = csv.DictWriter(file, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+        temporary_path.replace(path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
+def append_row(path, fields, row):
+    with path.open("a", newline="", encoding="utf-8") as file:
+        csv.DictWriter(file, fieldnames=fields).writerow(row)
+
+
+def create_table(path, fields):
+    if not path.exists():
+        write_table(path, fields, [])
 
 
 def initialize(root):
     root.mkdir(parents=True, exist_ok=True)
-    path = registry_path(root)
+    problems = table_path(root, "problems.csv")
+    attempts = table_path(root, "attempts.csv")
+    create_table(problems, PROBLEM_FIELDS)
+    create_table(attempts, ATTEMPT_FIELDS)
+    return {"problems": str(problems), "attempts": str(attempts)}
+
+
+def read_table(path, expected_fields):
     if not path.exists():
-        write_rows(root, [])
-    print(path)
+        raise RegistryError(f"Missing {path}. Run init first.")
+    with path.open(newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        if reader.fieldnames != expected_fields:
+            actual = ",".join(reader.fieldnames or [])
+            expected = ",".join(expected_fields)
+            raise RegistryError(
+                f"Unexpected header in {path}: {actual!r}. Expected {expected!r}."
+            )
+        return list(reader)
+
+
+def read_registry(root):
+    problems = read_table(table_path(root, "problems.csv"), PROBLEM_FIELDS)
+    attempts = read_table(table_path(root, "attempts.csv"), ATTEMPT_FIELDS)
+    return problems, attempts
+
+
+def ensure_current_registry(root):
+    problems_path = table_path(root, "problems.csv")
+    attempts_path = table_path(root, "attempts.csv")
+    if not problems_path.exists() and not attempts_path.exists():
+        initialize(root)
+        return
+    read_table(problems_path, PROBLEM_FIELDS)
+    create_table(attempts_path, ATTEMPT_FIELDS)
+
+
+def migrate_legacy(root):
+    legacy_path = table_path(root, "problems.csv")
+    attempts_path = table_path(root, "attempts.csv")
+    backup_path = table_path(root, "problems.legacy.csv")
+    if not legacy_path.exists():
+        raise RegistryError(f"Missing {legacy_path}; nothing to migrate.")
+    if backup_path.exists():
+        raise RegistryError(f"Backup already exists: {backup_path}.")
+    with legacy_path.open(newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        if reader.fieldnames == PROBLEM_FIELDS:
+            raise RegistryError("Registry already uses the current schema.")
+        if reader.fieldnames != LEGACY_PROBLEM_FIELDS:
+            raise RegistryError("problems.csv does not match the supported legacy schema.")
+        legacy_rows = list(reader)
+    if attempts_path.exists():
+        attempts = read_table(attempts_path, ATTEMPT_FIELDS)
+        if attempts:
+            raise RegistryError("Refusing migration because attempts.csv is not empty.")
+    problems = []
+    rows_with_attempts = 0
+    for number, row in enumerate(legacy_rows, 2):
+        problem = {field: row[field] for field in PROBLEM_FIELDS}
+        problem["difficulty"] = problem["difficulty"].lower()
+        problem["language"] = problem["language"].lower()
+        problems.append(problem)
+        try:
+            rows_with_attempts += int(row["attempts"] or 0) > 0
+        except ValueError as error:
+            raise RegistryError(
+                f"Invalid legacy attempts count at problems.csv row {number}."
+            ) from error
+    validate_rows(problems, [])
+    shutil.copy2(legacy_path, backup_path)
+    write_table(legacy_path, PROBLEM_FIELDS, problems)
+    create_table(attempts_path, ATTEMPT_FIELDS)
+    return {
+        "backup": str(backup_path),
+        "problems": len(problems),
+        "legacy_rows_with_attempts": rows_with_attempts,
+        "warning": (
+            "Legacy aggregate attempt data remains in the backup; historical events "
+            "cannot be reconstructed safely."
+        ),
+    }
 
 
 def slugify(value):
     return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
 
 
+def parse_day(value, field_name):
+    try:
+        return date.fromisoformat(value)
+    except ValueError as error:
+        raise RegistryError(f"Invalid {field_name}: {value!r}; use YYYY-MM-DD.") from error
+
+
+def validate_key(value, field_name):
+    if not SAFE_KEY.fullmatch(value):
+        raise RegistryError(
+            f"Invalid {field_name}: {value!r}; use letters, numbers, dots, underscores, or hyphens."
+        )
+
+
+def bounded_limit(value):
+    parsed = int(value)
+    if parsed not in range(1, 101):
+        raise argparse.ArgumentTypeError("limit must be between 1 and 100")
+    return parsed
+
+
+def problem_key(row):
+    return row["source"], row["id"]
+
+
+def find_problem(problems, source, problem_id):
+    return next(
+        (row for row in problems if problem_key(row) == (source, problem_id)),
+        None,
+    )
+
+
+def workspace_path(root, problem):
+    name = (
+        problem["id"]
+        if slugify(problem["id"]) == problem["slug"]
+        else f"{problem['id']}-{problem['slug']}"
+    )
+    return root / "problems" / problem["source"] / name
+
+
+def resolve_attempt_file(root, problem, file_name=None):
+    language = problem["language"].lower()
+    extension = EXTENSIONS.get(language)
+    if extension is None and file_name is None:
+        raise RegistryError(
+            f"No default file extension for {problem['language']!r}; pass --file-name."
+        )
+    chosen_name = file_name or f"Solution.{extension}"
+    if Path(chosen_name).name != chosen_name or chosen_name in {"", ".", ".."}:
+        raise RegistryError("--file-name must be a plain file name, not a path.")
+    return workspace_path(root, problem) / chosen_name
+
+
+def create_attempt_file(attempt_file):
+    attempt_file.parent.mkdir(parents=True, exist_ok=True)
+    attempt_file.touch(exist_ok=True)
+    return str(attempt_file)
+
+
 def add_problem(args):
     root = Path(args.root).resolve()
-    initialize(root)
-    rows = read_rows(root)
-    if any(row["source"] == args.source and row["id"] == args.id for row in rows):
-        raise SystemExit(f"Problem already exists: {args.source}/{args.id}")
-    row = {field: "" for field in FIELDS}
-    row.update({
+    ensure_current_registry(root)
+    problems, _ = read_registry(root)
+    validate_key(args.source, "source")
+    validate_key(args.id, "id")
+    slug = args.slug or slugify(args.title)
+    validate_key(slug, "slug")
+    difficulty = args.difficulty.lower()
+    if difficulty not in DIFFICULTIES:
+        raise RegistryError("Difficulty must be easy, medium, hard, or blank.")
+    row = {
         "source": args.source,
         "id": args.id,
-        "slug": args.slug or slugify(args.title),
+        "slug": slug,
         "title": args.title,
         "url": args.url,
         "topics": args.topics,
-        "patterns": args.patterns,
-        "difficulty": args.difficulty,
-        "language": args.language,
-        "status": "in-progress",
-        "attempts": "0",
-        "total_minutes": "0",
-    })
-    rows.append(row)
-    write_rows(root, rows)
-    if args.workspace:
-        extension = EXTENSIONS.get(args.language.lower(), args.language.lower())
-        file_name = args.file_name or f"Solution.{extension}"
-        workspace_name = args.id if slugify(args.id) == row["slug"] else f"{args.id}-{row['slug']}"
-        workspace = root / "problems" / args.source / workspace_name
-        workspace.mkdir(parents=True, exist_ok=False)
-        (workspace / file_name).touch()
-        print(workspace)
-
-
-def record_attempt(args):
-    root = Path(args.root).resolve()
-    rows = read_rows(root)
-    row = next((item for item in rows if item["source"] == args.source and item["id"] == args.id), None)
-    if row is None:
-        raise SystemExit(f"Unknown problem: {args.source}/{args.id}")
-    today = date.today()
-    attempts = int(row["attempts"] or 0) + 1
-    total_minutes = int(row["total_minutes"] or 0) + args.minutes
-    needs_review = args.outcome != "independent" or args.confidence < 4
-    stage = int(row["review_stage"] or 0)
-    if needs_review:
-        stage = min(stage + 1, 3)
-        days = (1, 7, 30)[stage - 1]
-        next_review = (today + timedelta(days=days)).isoformat()
+        "difficulty": difficulty,
+        "language": args.language.lower(),
+    }
+    attempt_file = (
+        resolve_attempt_file(root, row, args.file_name)
+        if args.workspace
+        else None
+    )
+    existing = find_problem(problems, args.source, args.id)
+    if existing is None:
+        problems.append(row)
+        write_table(table_path(root, "problems.csv"), PROBLEM_FIELDS, problems)
+        action = "added"
+    elif existing == row:
+        action = "unchanged"
     else:
-        stage = 0
-        next_review = ""
-    row.update({
-        "status": "solved" if args.outcome == "independent" else "review",
-        "outcome": args.outcome,
-        "attempts": str(attempts),
-        "total_minutes": str(total_minutes),
-        "confidence": str(args.confidence),
-        "last_attempted": today.isoformat(),
-        "next_review": next_review,
-        "review_stage": str(stage),
-        "debrief": args.debrief,
-    })
-    write_rows(root, rows)
+        raise RegistryError(
+            f"Problem {args.source}/{args.id} already exists with different metadata."
+        )
+    output = {"action": action, "problem": row}
+    if attempt_file is not None:
+        output["attempt_file"] = create_attempt_file(attempt_file)
+    return output
 
 
-def inline_cell(reference, value, style=None):
-    style_attribute = f' s="{style}"' if style is not None else ""
-    if value == "":
-        return f'<c r="{reference}"{style_attribute}/>'
-    return f'<c r="{reference}" t="inlineStr"{style_attribute}><is><t>{escape(str(value))}</t></is></c>'
-
-
-def row_xml(number, cells):
-    return f'<row r="{number}">{"".join(cells)}</row>'
-
-
-def sheet_xml(headers, values):
-    letters = [chr(ord("A") + index) for index in range(len(headers))]
-    rows = [row_xml(1, [inline_cell(f"{letter}1", value, 1) for letter, value in zip(letters, headers)])]
-    for number, values_row in enumerate(values, 2):
-        rows.append(row_xml(number, [inline_cell(f"{letter}{number}", value, 2) for letter, value in zip(letters, values_row)]))
-    last = f"{letters[-1]}{max(2, len(values) + 1)}"
-    columns = "".join(f'<col min="{index}" max="{index}" width="20" customWidth="1"/>' for index in range(1, len(headers) + 1))
-    return f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<dimension ref="A1:{last}"/><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
-<sheetFormatPr defaultRowHeight="15"/><cols>{columns}</cols><sheetData>{"".join(rows)}</sheetData><autoFilter ref="A1:{last}"/></worksheet>'''
-
-
-def export_xlsx(args):
+def append_attempt(args):
     root = Path(args.root).resolve()
-    rows = read_rows(root)
-    problem_values = [[item[field] for field in FIELDS] for item in rows]
-    topics = Counter()
-    for item in rows:
-        for topic in filter(None, (value.strip() for value in item["topics"].split(","))):
-            topics[topic] += 1
-    output = root / "registry" / "dsa-problem-tracker.xlsx"
-    content_types = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'''
-    root_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'''
-    workbook = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Problems" sheetId="1" r:id="rId1"/><sheet name="Topics" sheetId="2" r:id="rId2"/></sheets></workbook>'''
-    workbook_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'''
-    styles = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><color rgb="FFFFFFFF"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4E78"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf></cellXfs></styleSheet>'''
-    with ZipFile(output, "w", ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", content_types)
-        archive.writestr("_rels/.rels", root_rels)
-        archive.writestr("xl/workbook.xml", workbook)
-        archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
-        archive.writestr("xl/worksheets/sheet1.xml", sheet_xml(FIELDS, problem_values))
-        archive.writestr("xl/worksheets/sheet2.xml", sheet_xml(["topic", "problems"], [[topic, str(count)] for topic, count in sorted(topics.items())]))
-        archive.writestr("xl/styles.xml", styles)
-    print(output)
+    problems, attempts = read_registry(root)
+    validate_rows(problems, attempts)
+    if find_problem(problems, args.source, args.id) is None:
+        raise RegistryError(f"Unknown problem: {args.source}/{args.id}.")
+    attempted_at = args.on or date.today().isoformat()
+    parse_day(attempted_at, "attempt date")
+    if args.minutes < 0:
+        raise RegistryError("Minutes must be zero or greater.")
+    row = {
+        "source": args.source,
+        "id": args.id,
+        "attempted_at": attempted_at,
+        "result": args.result,
+        "assistance": args.assistance,
+        "minutes": str(args.minutes),
+        "confidence": str(args.confidence),
+        "debrief": args.debrief,
+    }
+    append_row(table_path(root, "attempts.csv"), ATTEMPT_FIELDS, row)
+    return row
 
 
-def validate(root):
-    rows = read_rows(root)
-    duplicates = [(row["source"], row["id"]) for row in rows]
-    if len(duplicates) != len(set(duplicates)):
-        raise SystemExit("Duplicate source/id entries in registry.")
-    for row in rows:
-        if not row["source"] or not row["id"] or not row["language"]:
-            raise SystemExit("Each row requires source, id, and language.")
-    print(f"Validated {len(rows)} problem records.")
+def review_interval(problem_attempts):
+    latest = problem_attempts[-1]
+    if latest["result"] != "correct" or latest["assistance"] != "none":
+        return 1
+    streak = 0
+    for attempt in reversed(problem_attempts):
+        if attempt["result"] == "correct" and attempt["assistance"] == "none":
+            streak += 1
+        else:
+            break
+    return (1, 7, 30)[min(streak, 3) - 1]
 
 
-def main():
-    parser = argparse.ArgumentParser()
+def due_items(args):
+    root = Path(args.root).resolve()
+    problems, attempts = read_registry(root)
+    validate_rows(problems, attempts)
+    as_of = parse_day(args.as_of or date.today().isoformat(), "as-of date")
+    grouped = {}
+    for attempt in attempts:
+        grouped.setdefault(problem_key(attempt), []).append(attempt)
+    output = []
+    for problem in problems:
+        history = sorted(grouped.get(problem_key(problem), []), key=lambda row: row["attempted_at"])
+        if history:
+            latest_day = parse_day(history[-1]["attempted_at"], "attempt date")
+            due = latest_day + timedelta(days=review_interval(history))
+        else:
+            due = as_of
+        if due <= as_of:
+            output.append({
+                "source": problem["source"],
+                "id": problem["id"],
+                "title": problem["title"],
+                "topics": problem["topics"],
+                "difficulty": problem["difficulty"],
+                "language": problem["language"],
+                "due": due.isoformat(),
+                "attempts": len(history),
+            })
+    output.sort(key=lambda item: (item["due"], item["attempts"], item["source"], item["id"]))
+    return output[:args.limit]
+
+
+def validate_rows(problems, attempts):
+    seen = set()
+    for number, problem in enumerate(problems, 2):
+        key = problem_key(problem)
+        if key in seen:
+            raise RegistryError(
+                f"Duplicate problem at problems.csv row {number}: {key[0]}/{key[1]}."
+            )
+        seen.add(key)
+        validate_key(problem["source"], f"source at problems.csv row {number}")
+        validate_key(problem["id"], f"id at problems.csv row {number}")
+        validate_key(problem["slug"], f"slug at problems.csv row {number}")
+        if not problem["title"] or not problem["language"]:
+            raise RegistryError(
+                f"Problem at problems.csv row {number} requires title and language."
+            )
+        if problem["difficulty"] not in DIFFICULTIES:
+            raise RegistryError(f"Invalid difficulty at problems.csv row {number}.")
+    for number, attempt in enumerate(attempts, 2):
+        key = problem_key(attempt)
+        if key not in seen:
+            raise RegistryError(
+                f"Attempt at attempts.csv row {number} references unknown problem "
+                f"{key[0]}/{key[1]}."
+            )
+        parse_day(attempt["attempted_at"], f"attempted_at at attempts.csv row {number}")
+        if attempt["result"] not in RESULTS:
+            raise RegistryError(f"Invalid result at attempts.csv row {number}.")
+        if attempt["assistance"] not in ASSISTANCE_LEVELS:
+            raise RegistryError(f"Invalid assistance at attempts.csv row {number}.")
+        try:
+            minutes = int(attempt["minutes"])
+            confidence = int(attempt["confidence"])
+        except ValueError as error:
+            raise RegistryError(
+                f"Minutes and confidence must be integers at attempts.csv row {number}."
+            ) from error
+        if minutes < 0 or confidence not in range(1, 6):
+            raise RegistryError(f"Invalid minutes or confidence at attempts.csv row {number}.")
+    return {"problems": len(problems), "attempts": len(attempts)}
+
+
+def validate_registry(root):
+    problems, attempts = read_registry(root)
+    return validate_rows(problems, attempts)
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        description="Maintain a plain-text DSA practice queue.",
+        epilog=(
+            "Example: manage_registry.py due --root ./dsa-practice --limit 5\n"
+            "Run any subcommand with --help for its arguments."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     commands = parser.add_subparsers(dest="command", required=True)
-    init = commands.add_parser("init")
+
+    init = commands.add_parser("init", help="Create missing registry tables.")
     init.add_argument("--root", required=True)
-    add = commands.add_parser("add")
+
+    migrate = commands.add_parser("migrate", help="Migrate the legacy 18-column registry.")
+    migrate.add_argument("--root", required=True)
+
+    add = commands.add_parser("add", help="Add one problem idempotently.")
     add.add_argument("--root", required=True)
     add.add_argument("--source", required=True)
     add.add_argument("--id", required=True)
@@ -190,35 +414,54 @@ def main():
     add.add_argument("--title", required=True)
     add.add_argument("--url", default="")
     add.add_argument("--topics", default="")
-    add.add_argument("--patterns", default="")
-    add.add_argument("--difficulty", default="")
+    add.add_argument("--difficulty", default="", choices=["easy", "medium", "hard"])
     add.add_argument("--language", required=True)
     add.add_argument("--workspace", action="store_true")
     add.add_argument("--file-name")
-    attempt = commands.add_parser("attempt")
+
+    attempt = commands.add_parser("attempt", help="Append one practice event.")
     attempt.add_argument("--root", required=True)
     attempt.add_argument("--source", required=True)
     attempt.add_argument("--id", required=True)
-    attempt.add_argument("--outcome", required=True, choices=["independent", "hint", "studied-solution"])
+    attempt.add_argument("--result", required=True, choices=sorted(RESULTS))
+    attempt.add_argument("--assistance", required=True, choices=sorted(ASSISTANCE_LEVELS))
     attempt.add_argument("--minutes", required=True, type=int)
     attempt.add_argument("--confidence", required=True, type=int, choices=range(1, 6))
     attempt.add_argument("--debrief", default="")
-    export = commands.add_parser("export-xlsx")
-    export.add_argument("--root", required=True)
-    check = commands.add_parser("validate")
+    attempt.add_argument("--on", help="Attempt date in YYYY-MM-DD; defaults to today.")
+
+    due = commands.add_parser("due", help="Print a bounded due queue as JSON.")
+    due.add_argument("--root", required=True)
+    due.add_argument("--limit", type=bounded_limit, default=5, metavar="N")
+    due.add_argument("--as-of", help="Queue date in YYYY-MM-DD; defaults to today.")
+
+    check = commands.add_parser("validate", help="Validate schemas and values.")
     check.add_argument("--root", required=True)
+    return parser
+
+
+def main():
+    parser = build_parser()
     args = parser.parse_args()
-    if args.command == "init":
-        initialize(Path(args.root).resolve())
-    elif args.command == "add":
-        add_problem(args)
-    elif args.command == "attempt":
-        record_attempt(args)
-    elif args.command == "export-xlsx":
-        export_xlsx(args)
-    else:
-        validate(Path(args.root).resolve())
+    try:
+        if args.command == "init":
+            output = initialize(Path(args.root).resolve())
+        elif args.command == "migrate":
+            output = migrate_legacy(Path(args.root).resolve())
+        elif args.command == "add":
+            output = add_problem(args)
+        elif args.command == "attempt":
+            output = append_attempt(args)
+        elif args.command == "due":
+            output = due_items(args)
+        else:
+            output = validate_registry(Path(args.root).resolve())
+        print(json.dumps(output, indent=2, sort_keys=True))
+    except RegistryError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
