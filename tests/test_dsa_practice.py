@@ -141,6 +141,13 @@ class RegistryCliTests(unittest.TestCase):
         self.assertEqual(0, result.returncode)
         self.assertLess(max(map(len, result.stdout.splitlines())), 120)
 
+    def test_registry_files_use_portable_lf_line_endings(self):
+        self.add_two_sum()
+        self.record_attempt("2026-07-29", "incorrect", "hint")
+
+        for name in ("problems.csv", "attempts.csv"):
+            self.assertNotIn(b"\r\n", (self.root / "registry" / name).read_bytes())
+
     def test_migrate_backs_up_legacy_registry_and_keeps_stable_metadata(self):
         registry = self.root / "registry"
         registry.mkdir()

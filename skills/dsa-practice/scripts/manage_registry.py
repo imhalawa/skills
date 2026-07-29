@@ -62,7 +62,7 @@ def write_table(path, fields, rows):
             delete=False,
         ) as file:
             temporary_path = Path(file.name)
-            writer = csv.DictWriter(file, fieldnames=fields)
+            writer = csv.DictWriter(file, fieldnames=fields, lineterminator="\n")
             writer.writeheader()
             writer.writerows(rows)
         temporary_path.replace(path)
@@ -73,7 +73,7 @@ def write_table(path, fields, rows):
 
 def append_row(path, fields, row):
     with path.open("a", newline="", encoding="utf-8") as file:
-        csv.DictWriter(file, fieldnames=fields).writerow(row)
+        csv.DictWriter(file, fieldnames=fields, lineterminator="\n").writerow(row)
 
 
 def create_table(path, fields):
