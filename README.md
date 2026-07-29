@@ -32,3 +32,7 @@ Skill bodies must stay harness-agnostic in wording (e.g. "invoke the `X` skill",
 - **Codex CLI**: no native plugin/marketplace, deliberately — Codex drops symlinks when it installs a plugin, so a plugin manifest can't reference this repo's real `skills/` without duplicating it. Use the individual-skill install above instead. See `.agents/adr/0001-defer-codex-plugin-symlinks-dropped-on-install.md`.
 
 Any skill added here should document both install paths in its own SKILL.md if it declares dependencies on other skills (see `skills/decide/SKILL.md` for the pattern).
+
+## Developing skills
+
+Repository authoring rules live in [`AGENTS.md`](AGENTS.md) and apply through both Codex and Claude Code. Any new or changed skill must use `superpowers:writing-skills` and `skill-creator`, including a failing baseline, forward tests, repository tests, and official validation before deployment.
