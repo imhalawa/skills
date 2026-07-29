@@ -15,7 +15,7 @@ Require the `grilling` and `research` skills before doing any decision work. If 
 
 Reference installation commands:
 
-- Claude Code: `npx skills add mattpocock/skills/grilling` and `npx skills add mattpocock/skills/research`
+- Claude Code: `npx skills add mattpocock/skills --skill grilling research`
 - Codex CLI: `python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py --repo mattpocock/skills --path skills/productivity/grilling skills/engineering/research`
 
 ## Workspace
@@ -43,7 +43,7 @@ life-decisions/
 
 1. Pass the dependency gate and load the profile.
 2. If the profile has no real content, complete onboarding before scoring a decision.
-3. Match topics to existing slugs. For a match, load both files; before waiting for answers, set status `revisit`, add a dated newest-first refinement placeholder, and append the revisit request and next question to the existing transcript. Replace placeholders as new Q&A arrives.
+3. For a matching slug, load both files. Before asking, persist this shape: `entry.md` has status `revisit` and today's placeholder before every older `## Refinement`; `transcript.md` ends with the request and one next question. Replace the placeholder as answers arrive.
 4. Invoke `grilling` until options and criteria are explicit. Save Q&A verbatim as it happens.
 5. Invoke `research` only for external facts the choice depends on.
 6. Copy the decision template for a new entry. Weight criteria from the profile, show the arithmetic, and state an explicit recommendation.
@@ -51,7 +51,7 @@ life-decisions/
 
 ## Example
 
-For “Revisit my Rotterdam move,” load the matching entry and transcript, mark `revisit`, add a newest-first placeholder, append the request and next question, then ask what changed; replace the placeholder as answers arrive.
+For “Revisit my Rotterdam move,” persist `revisit`, a placeholder above older refinements, and the request plus one question at transcript end; then wait and replace the placeholder from answers.
 
 ## Common mistakes
 

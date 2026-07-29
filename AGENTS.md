@@ -8,6 +8,6 @@ For any work that creates, edits, reviews, or prepares a skill for deployment:
 - Finish and verify one skill before starting another.
 - Keep `SKILL.md` concise, trigger-focused, harness-agnostic, and progressively disclosed.
 - Keep process notes and evaluation artifacts outside deployed skill directories.
-- Run repository tests and the official validator before claiming completion.
+- Run `python3 -B -m unittest discover -s tests -v` and the official validator before claiming completion.
 
 Do not treat an existing skill as exempt when it is edited; apply the workflow to the change.

@@ -35,4 +35,4 @@ Any skill added here should document both install paths in its own SKILL.md if i
 
 ## Developing skills
 
-Repository authoring rules live in [`AGENTS.md`](AGENTS.md) and apply through both Codex and Claude Code. Any new or changed skill must use `superpowers:writing-skills` and `skill-creator`, including a failing baseline, forward tests, repository tests, and official validation before deployment.
+Repository authoring rules live in [`AGENTS.md`](AGENTS.md) and apply through both Codex and Claude Code. Any new or changed skill must use `superpowers:writing-skills` and `skill-creator`, including a failing baseline, forward tests, repository tests, and official validation before deployment. Run repository tests with `python3 -B -m unittest discover -s tests -v`.
