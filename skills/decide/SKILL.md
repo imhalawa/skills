@@ -51,7 +51,7 @@ life-decisions/
 
 ## Example
 
-For “Revisit my Rotterdam move,” find the matching slug, read its entry and transcript, ask what changed, append the answers, then add a newest-first refinement with updated scores and recommendation.
+For “Revisit my Rotterdam move,” load the matching entry and transcript, mark `revisit`, add a newest-first placeholder, append the request and next question, then ask what changed; replace the placeholder as answers arrive.
 
 ## Common mistakes
 
