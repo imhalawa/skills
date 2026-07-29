@@ -1,66 +1,64 @@
 ---
 name: decide
-description: Logic-first decision and life-choice resolution, backed by research and a persistent personal profile. Use when the user wants help deciding between options, resolving a life choice, revisiting a past decision, or explicitly invokes 'decide'/'/decide'.
+description: Use when the user wants help choosing between life options, resolving or revisiting a personal decision, or explicitly invokes decide or /decide.
 ---
 
-Act as the user's purely logical second voice — a deliberate counterweight to emotion-driven, impulsive decision-making. Never make the final call for them; make the logic behind a good call impossible to ignore.
+# Decide
 
-The profile and decision log live in a separate repo: `life-decisions` — known location: `/mnt/r/life-decisions` (may relocate; if not there, ask where it lives once, then remember). Layout:
+## Overview
 
-```
+Act as the user's logical second voice: make an explicit, evidence-backed recommendation while leaving the final choice to the user. Preserve relevant context so later decisions improve instead of restarting from scratch.
+
+## Dependency gate
+
+Require the `grilling` and `research` skills before doing any decision work. If either is unavailable, stop, name what is missing, and reference `https://github.com/mattpocock/skills`. Do not install it or continue the workflow.
+
+Reference installation commands:
+
+- Claude Code: `npx skills add mattpocock/skills/grilling` and `npx skills add mattpocock/skills/research`
+- Codex CLI: `python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py --repo mattpocock/skills --path skills/productivity/grilling skills/engineering/research`
+
+## Workspace
+
+Use `/mnt/r/life-decisions`; if absent, ask for its new location once. This skill's `templates/decision.md` and `templates/profile.md` are canonical. Seed copies into the workspace only when missing.
+
+```text
 life-decisions/
-  profile.md              # accumulated values / constraints / decision-style
-  templates/
-    decision.md            # seeded copy — canonical source is this skill's own templates/decision.md
-    profile.md              # seeded copy — canonical source is this skill's own templates/profile.md
-  decisions/
-    <slug>/
-      entry.md              # structured output, copied from templates/decision.md
-      transcript.md          # raw grilling Q&A for this decision, verbatim
+  profile.md
+  templates/{decision.md,profile.md}
+  decisions/<slug>/{entry.md,transcript.md}
 ```
 
-This skill's own repo carries the canonical templates (`templates/decision.md`, `templates/profile.md`, next to this file) — `life-decisions` gets a seeded copy on first run. If the templates evolve here, re-sync the copies in `life-decisions` too.
+## Quick reference
 
-## 0. Dependencies
+| Situation | Action |
+|---|---|
+| Empty profile | Scaffold, invoke `grilling` for onboarding, then record dated values, constraints, and decision style |
+| New decision | Create a kebab-case slug, grill, research factual dependencies, score, recommend, persist |
+| Matching slug | Load `entry.md` and `transcript.md`; ask only what changed; refine in place |
+| User reports outcome | Record the choice and date; set status to `decided` |
+| New personal fact | Append it to the matching profile section unless already present |
 
-Depends on `grilling` and `research` (source: `mattpocock/skills` — https://github.com/mattpocock/skills). Check both are discoverable (current skill listing, or resolve under wherever skills are installed for the active harness) before running anything below.
+## Workflow
 
-This is a **hard blocker, not an auto-install**. If either is missing, stop and tell the user exactly what's missing and where to get it — do not install it for them, on any harness. They may not want this skill's opinion on how their skill directory is managed. Give them the source URL and, for reference only, the commands that would install it:
+1. Pass the dependency gate and load the profile.
+2. If the profile has no real content, complete onboarding before scoring a decision.
+3. Match topics to existing slugs. For a match, load both files; before waiting for answers, set status `revisit`, add a dated newest-first refinement placeholder, and append the revisit request and next question to the existing transcript. Replace placeholders as new Q&A arrives.
+4. Invoke `grilling` until options and criteria are explicit. Save Q&A verbatim as it happens.
+5. Invoke `research` only for external facts the choice depends on.
+6. Copy the decision template for a new entry. Weight criteria from the profile, show the arithmetic, and state an explicit recommendation.
+7. Use `open` for unresolved new decisions, `revisit` during refinement, and `decided` only after the user reports their choice.
 
-- **Claude Code**: `npx skills add mattpocock/skills/grilling` (and `.../research`)
-- **Codex CLI**: `python3 ~/.codex/skills/.system/skill-installer/scripts/install-skill-from-github.py --repo mattpocock/skills --path skills/productivity/grilling skills/engineering/research`
+## Example
 
-Wait for the user to install and confirm before proceeding to §1.
+For “Revisit my Rotterdam move,” find the matching slug, read its entry and transcript, ask what changed, append the answers, then add a newest-first refinement with updated scores and recommendation.
 
-## 1. Initiation (first run only)
+## Common mistakes
 
-If `life-decisions/profile.md` doesn't exist, or exists but is empty of real content: this is a new machine or fresh setup.
-
-1. Scaffold `life-decisions` if missing: copy this skill's `templates/profile.md` to `life-decisions/profile.md`, copy `templates/decision.md` to `life-decisions/templates/decision.md` (and `templates/profile.md` there too, for reference), create `decisions/`.
-2. Say what's happening, then run a dedicated onboarding interview via `grilling` — not about any specific decision, but about the user themselves: values, risk tolerance, hard constraints (financial, family, health, time), and how they tend to decide (impulsive/deliberate, what derails them).
-3. Write the answers into `profile.md` under the Decision-making style / Values / Constraints headings, each entry dated.
-
-Skip this whole step once a populated profile already exists — it's onboarding, not a recurring ritual.
-
-## 2. Ongoing capture
-
-At the start of any `decide` session, and whenever the user reveals a new values/constraints/decision-style fact mid-conversation (in this skill or otherwise — see the global passive-capture instruction in the user's own CLAUDE.md/AGENTS.md, which this skill's onboarding step should have helped bootstrap), append it to `profile.md`, dated, under the right heading. Don't duplicate an existing entry — check first.
-
-## 3. Deciding
-
-For a new decision:
-
-1. **Identify the slug.** Short kebab-case name for this decision (e.g. `rotterdam-move`). Check `decisions/` for an existing slug that matches this topic before assuming it's new — if one exists, this is a **refinement** (see §4), not a new decision.
-2. **Grill.** Invoke `grilling` to interview the user until the actual options and the criteria that matter are sharp and explicit. Save the raw Q&A verbatim to `decisions/<slug>/transcript.md` as it happens (don't summarize it away — that's what `entry.md` is for).
-3. **Research.** Invoke `research` against the sharpened question for any factual/external input the options depend on.
-4. **Score.** Copy `templates/decision.md` to `decisions/<slug>/entry.md` if not already present. Fill in options, criteria (weighted from the profile's values/constraints), and the scored matrix — show the arithmetic, not just the conclusion.
-5. **Recommend.** State an explicit recommendation with reasoning traceable to the matrix. The user decides; you argue the logical case. Set `entry.md` status to `open`.
-6. **Persist outcome later.** Once the user says what they actually chose (may be a later session), update `entry.md`'s Outcome section and flip status to `decided`.
-
-## 4. Refining
-
-If the user wants to revisit an existing decision (explicit ask, or a new decision session matches an existing slug): load that `decisions/<slug>/entry.md` and its `transcript.md` for context first — don't re-litigate ground already covered. Grill only on what's actually changed. Append a new `## Refinement — YYYY-MM-DD` section to `entry.md` (most recent on top, per the template) with updated criteria/matrix rows and recommendation; append the new Q&A to the same `transcript.md` rather than starting a new file. Set status to `revisit` while open, back to `decided` once resolved.
-
-## Templates
-
-This skill's `templates/decision.md` and `templates/profile.md` (next to this file) are the source of truth — `life-decisions`' copies are seeded from them, not the other way around. If a decision's needs outgrow the template (a recurring section that isn't there yet), update the template here first, then re-sync `life-decisions/templates/`, so future entries stay consistent instead of drifting.
+| Mistake | Correction |
+|---|---|
+| Continuing without a dependency | Stop at the gate; never auto-install |
+| Choosing on the user's behalf | Recommend clearly; the user makes the final call |
+| Recreating an existing decision | Refine the matching entry and transcript in place |
+| Summarizing the interview away | Preserve raw Q&A in `transcript.md` |
+| Editing workspace templates first | Update this skill's canonical templates, then re-sync copies |

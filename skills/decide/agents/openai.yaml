@@ -1,0 +1,4 @@
+interface:
+  display_name: "Decide"
+  short_description: "Resolve personal choices with structured logic"
+  default_prompt: "Use $decide to help me choose between two life options."
