@@ -48,4 +48,4 @@ communication skill for answers, project work, and publishing.
 - [x] Run `git diff --check` and review the complete diff.
 - [x] Install globally for Codex and Claude Code.
 - [x] Verify installed copies match the reviewed source.
-- [ ] Commit coherently and push the current branch.
+- [x] Commit coherently and push the current branch.
