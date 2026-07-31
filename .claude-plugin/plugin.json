@@ -1,7 +1,7 @@
 {
   "name": "skills",
-  "version": "0.1.0",
-  "description": "Personal skill collection for decision-making and structured DSA practice.",
+  "version": "0.2.0",
+  "description": "Personal skills for decisions, DSA practice, and technical communication.",
   "author": {
     "name": "imhalawa",
     "url": "https://github.com/imhalawa"
@@ -10,6 +10,7 @@
   "license": "MIT",
   "skills": [
     "./skills/decide",
-    "./skills/dsa-practice"
+    "./skills/dsa-practice",
+    "./skills/tech-voice"
   ]
 }

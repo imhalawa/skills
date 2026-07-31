@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "skills",
-  "description": "Personal skills for decision-making and structured DSA practice.",
+  "description": "Personal skills for decisions, DSA practice, and technical communication.",
   "owner": {
     "name": "imhalawa",
     "url": "https://github.com/imhalawa"
@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "skills",
-      "description": "Personal skill collection for decision-making and structured DSA practice.",
+      "description": "Personal skills for decisions, DSA practice, and technical communication.",
       "source": "./",
       "category": "productivity"
     }

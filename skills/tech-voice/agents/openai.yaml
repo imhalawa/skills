@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tech Voice"
+  short_description: "Write clear, precise technical communication"
+  default_prompt: "Use $tech-voice to make this technical answer clear, precise, and proportionate."
